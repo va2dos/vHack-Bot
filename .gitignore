@@ -1,0 +1,5 @@
+# python libs
+.venv/
+.vscode/
+
+__pycache__/

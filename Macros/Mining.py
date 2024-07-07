@@ -1,106 +1,160 @@
 import time
-import random
 import pyautogui as pag
-from Utils import Press, CLICK_INTERVAL, random_break, config
-from BlueHackWindow import BlueHack, BlueHackImages, GetElement, check_for_block, check_connection, MouseCords
+from enum import Enum
+from random import uniform, randrange
+from BlueHackWindow import BlueHackImages, GetElement, check_connection, MouseCords
 pag.FAILSAFE = True
 
-nc_block = BlueHackImages['nc_block']
+BLOCK_SIZE = 70
+MOVE_TWEEN = pag.easeInElastic
 
-def set_location():
-    # Set the start location in the NC Mine
-    Press('down', 3)
-    Press('right', 1)
-    Press('left', 7)
+class Moves(Enum):
+    UP = 1
+    RIGHT = 2
+    DOWN = 3
+    LEFT = 4
 
+CurrentQuadrant = 1
+# 1 2 3
+# 4 5 6
 
-def NC_Mining(stop_mining):
-    """
-    :param stop_mining: Periodically checks if stop_mining is True.
-    NC_Mining loop
-    """
-    ON_MINE_APP = False
-    STOP_MINING = False
+# quandrant : [UP, Right, Down, Left]
+# 0 = Invalid direction
+Quadrants = {
+    1: [0, 2, 4, 0],
+    2: [0, 3, 5, 1],
+    3: [0, 0, 6, 2],
+    
+    4: [1, 5, 0, 0],
+    5: [2, 6, 0, 4],
+    6: [3, 0, 0, 5],
+}
+
+def drag(direction) :
+    global CurrentQuadrant
+    # X Range, 680 , 955,  1230, >>> 337, 67px 1 block
+    # Y range 215, 610, 1000 >>> 0-1075 > 60px 1 block
+    print('Moving {} from Quandrant {}'.format(direction.name, CurrentQuadrant))
+    next = Quadrants[CurrentQuadrant]
+    match direction:
+        case Moves.UP:
+            if next[0] == 0: return
+            pag.moveTo(955, 500)
+            pag.drag(xOffset=0, yOffset=4.5*BLOCK_SIZE, duration=1, button=pag.LEFT, tween=MOVE_TWEEN)
+            CurrentQuadrant = next[0]
+        case Moves.DOWN:
+            if next[2] == 0: return
+            pag.moveTo(955, 700)
+            pag.drag(xOffset=0, yOffset=-4.5*BLOCK_SIZE, duration=1, button=pag.LEFT, tween=MOVE_TWEEN)
+            CurrentQuadrant = next[2]
+        case Moves.RIGHT:
+            if next[1] == 0: return
+            pag.moveTo(1000, 610)
+            pag.drag(xOffset=-5*BLOCK_SIZE, yOffset=0, duration=1, button=pag.LEFT, tween=MOVE_TWEEN)
+            CurrentQuadrant = next[1]
+        case Moves.LEFT:
+            if next[3] == 0: return
+            pag.moveTo(900, 610)
+            pag.drag(xOffset=5*BLOCK_SIZE, yOffset=0, duration=1, button=pag.LEFT, tween=MOVE_TWEEN)
+            CurrentQuadrant = next[3]
+
+def wait(t):
+    if t < 0: 
+        return
     while True:
-        # Check the connection, just in case.
-        if check_connection(0):
-            break
-        if STOP_MINING:
+        if 0 <= t <= 1:
+            time.sleep(t)
             break
         else:
-            # Click on Mine App
-            mine_x, mine_y = MouseCords['Mine Icon'][0], MouseCords['Mine Icon'][1]
-
-            # Start the bot
-            if not ON_MINE_APP:
-                pag.click(mine_x, mine_y)
-
-            ON_MINE_APP = True
-
-            # Grid management for moving around the mine
-            grid = 'LeftBot'
-            locations = {
-                'LeftBot': ['up', 6, 'LeftTop'],
-                'LeftTop': ['right', 6, 'MidTop'],
-                'MidTop': ['right', 5, 'RightTop'],
-                'RightTop': ['down', 6, 'RightBot'],
-                'RightBot': ['left', 5, 'MidBot'],
-                'MidBot': ['left', 6, 'LeftBot']
-            }
-
-            back_btn_x, back_btn_y = MouseCords['Mining Back'][0], MouseCords['Mining Back'][1]
-            zoom_x, zoom_y = MouseCords['Mining Zoom'][0], MouseCords['Mining Zoom'][1]
-
-            #Zoom out for larger scan
-            time.sleep(0.1)
-            pag.mouseDown(x=zoom_x, y=zoom_y)
             time.sleep(1)
-            pag.mouseUp()
-            time.sleep(1)
-            set_location()
+            t -= 1
 
-            while not stop_mining.value:
-                if check_connection(0): # Again to make sure we're still connected
-                    break
+def click_wait(x, y):
+    cX = randrange(10) - 5 + x
+    cY = randrange(10) - 5 + y
+    pag.click(cX, cY)
+    wait(uniform(6.52, 7.28))
 
-                # Random breaks in mining
-                if config['Random Breaks'] and random.randint(0,100) < config["Random Chance"]:
-                    pag.click(back_btn_x, back_btn_y)
-                    random_break()
-                    break
+def zoomOut():
+    zoom_x, zoom_y = MouseCords['Mining Zoom'][0], MouseCords['Mining Zoom'][1]
+    pag.mouseDown(x=zoom_x, y=zoom_y)
+    wait(3)
+    pag.mouseUp()
+    wait(0.2)
 
-                # Looks for a block
-                found, (x, y) = check_for_block()
-                if found:
-                    pag.click(x, y) # Block found, click it
-                    time.sleep(CLICK_INTERVAL() + config["Mine Speed"])
+def NC_Mining(quantity):
+    try:
+        # Click on Mine App
+        mine_x, mine_y = MouseCords['Mine Icon'][0], MouseCords['Mine Icon'][1]
+        pag.click(mine_x, mine_y)
 
-                else:
-                    # Block not found, starts grid scan
-                    count = 0
-                    passes = config["Mine Passes until Cooldown"] * 6
-                    while True:
+        #Zoom out for larger scan
+        zoomOut()
 
-                        # Does x amount of scans before cooldown if none
-                        if count >= passes:
-                            random_sleep = random.randrange(config['Cooldown Wait Time'][0],
-                                                            config['Cooldown Wait Time'][1])
-                            print("Full pass done, mine is empty.")
-                            print(f'Waiting {round(random_sleep, 0)} seconds.')
-                            time.sleep(random_sleep)
-                            count = 0
+        #Goto Top Left, X 5 block, Y 2 block
+        pag.moveTo(955, 610)
+        pag.drag(xOffset=4.5*BLOCK_SIZE, yOffset=2.8*BLOCK_SIZE, duration=1, button=pag.LEFT, tween=MOVE_TWEEN) 
 
-                        time.sleep(.3)
-                        found, (_,_) = check_for_block()
-                        if found or stop_mining.value:
-                            break
-                        else:
-                            # Scan grid and sets current location on the grid for later use
-                            print('Looking for Block...')
-                            Press(locations[grid][0], locations[grid][1])
-                            grid = locations[grid][2]
-                            count += 1
+        counter = _doMine(quantity)
+        print('Finish scanning {} blocks'.format( counter ))
 
-            # Go back to main menu
-            pag.click(back_btn_x, back_btn_y)
-            STOP_MINING = True
+        # Go back to main menu
+        back_btn_x, back_btn_y = MouseCords['Mining Back'][0], MouseCords['Mining Back'][1]
+        pag.click(back_btn_x, back_btn_y)
+
+    except KeyboardInterrupt:
+        pass
+
+def _doMine(quantity):
+    counter = 0
+    while check_connection(0) and counter < quantity:
+        # Looks for a block
+        found, (x, y) = _check_for_block()
+        if found:
+            click_wait(x, y)
+            counter += 1
+
+        else:
+            # Block not found, starts grid scan
+            if _scanGrid() == False:
+                # No block found else where on the grid
+                return counter
+            
+    return counter
+
+def _check_for_block():
+    # Checked for NC Mining block
+    found, (x, y) = GetElement(BlueHackImages['nc_block'][0], 0.85)
+    if found == True:
+        return True, (x, y)
+    
+    return False, (None, None)
+
+def _scanGrid():
+    # Grid is 20 x 20 blocks, 12height x 9 with fit on screen under the header
+
+    while True:
+
+        found, (_,_) = _check_for_block()
+        if found == True:
+            return True
+
+        # 1 2 3
+        # 4 5 6
+        # Path 1, 2, 3, 6, 5, 4
+        match CurrentQuadrant:    
+            case 1:
+                drag(Moves.RIGHT)
+            case 2:
+                drag(Moves.RIGHT)
+            case 3:
+                drag(Moves.DOWN)
+            case 6:
+                drag(Moves.LEFT)
+            case 5:
+                drag(Moves.LEFT)
+            case 4:
+                # IF allready in 4, no more blocks, 
+                # head home and take a break
+                return False 
+            

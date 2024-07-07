@@ -46,10 +46,13 @@ The `config.json` allows the ability to customize some of the options for the fa
 ## Requirements
 
 - 1920x1080 Resolution monitor (or change X,Y values in `BlueHackWindow.py MouseCords`)
-- BlueStacks 5 (maybe other Emulators work, I haven't tried.)
-- Python 3.12
-- PyAutoGUI
-- PyGetWindow (for managing the BlueStacks window)
+- BlueStacks 5 
+  - Resolution of Display in Bluestacks : 2560 x 1440
+  - Device Profile Galaxy S22 Ultra
+  - Full screen (F11)
+- pip install -r requirements.txt
+  - PyAutoGUI
+  - PyGetWindow (for managing the BlueStacks window)
 
 ## Usage 📖
 

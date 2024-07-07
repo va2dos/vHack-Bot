@@ -1,81 +1,99 @@
-from multiprocessing import Process, Value
-from threading import Timer
-import ctypes
+from enum import IntEnum
 import os
 import time
-from Macros.Botnet import Farm_Botnet
+from BlueHackWindow import HOME
 from Macros.Mining import NC_Mining
-from Macros.Rewards import Check_Rewards
-from Utils import config
+from Macros.Botnet import Farm_Botnet
+from Macros.Rewards import WheelSpins, SlotSpins
+from Macros.Track import Track_Nouse
+from Macros.Network import Farm_Network
+from Macros.Terminal import Farm_Terminal
+from Macros.Banking import Farm_Wallets
+from Utils import get_config
 
-FARM_TIME = config['Farm Time'] * 60
-CLOSE_SCRIPT = False
+config = get_config()
 
-def GeneralFarm(stop_mining):
-    """
-    :param stop_mining: Stops on timer pulled from config 'Farm Time'
-    Main loop of the 'General Farm' until stop_mining
-    """
-    while not stop_mining.value:
-        NC_Mining(stop_mining)
-        if config['Check Rewards after farm']:
-            time.sleep(3)
-            Check_Rewards()
-        if config['Check Botnet after farm']:
-            time.sleep(3)
-            Farm_Botnet()
-
+class MenuItems(IntEnum):
+    AUTO = 0
+    NC = 1
+    NETWORK = 2
+    TERMINAL = 3
+    BOTNET = 4
+    SPIN = 5
+    WHEEL = 6
+    BANK = 7
+    DEBUG_MOUSE = 8
+    QUIT = 9
 
 def main():
-    #This is the timer, farming operations will stop after this
-    stop_mining = Value(ctypes.c_bool, False)
-    farm_time_timer = Timer(FARM_TIME, quit_script, [stop_mining])
-    farm_time_timer.start()
-    """
-    Main menu, Farm Timer starts as soon as the script is ran.
-    General farm is NC Mine with rewards and botnet farms (if enabled in config).
-    """
     while True:
-        if CLOSE_SCRIPT:
-            os.system('cls||clear')
-            break
-        print('BlueHack | Education Purposes only!')
-        print('Type the number of the option you want.')
-        print('[1] General Farm\n[2] Botnet Farm\n[3] Prize Farm\n[5] Quit')
-        user_input = input('What would you like to do? ')
+        try:
+            # Go to Home at start
+            HOME()
 
-        if user_input == '1':
-            print('Started Farming')
-            farm_process = Process(target=GeneralFarm, args=(stop_mining,))
-            farm_process.start()
-            farm_process.join()
+            # Print menu
+            print('Type the number of the option you want.')
+            for item in iter(MenuItems) :
+                print(' [{}] {}'.format(item.value, item.name))
 
-        elif user_input == '2':
-            print(f'Farming Botnet')
-            Farm_Botnet()
+            # Wait for Script Pick
+            user_input = input('What would you like to do? ')
+            if not user_input.isdigit() or not int(user_input) in iter(MenuItems) :
+                os.system('cls||clear')
+                print('Not a valid option.')
+                continue
+            
+            menuItem = MenuItems(int(user_input))
+            print('CLTR-C at any moment to return to main menu')
+            print('starting: ' + menuItem.name + '\n')
 
-        elif user_input == '3':
-            print(f'Farming Prizes')
-            Check_Rewards()
+            match menuItem:
+                case MenuItems.AUTO:
+                    #Every look taps ~ 15 minutes
+                    # 4x 75 Target = 300 for dailys
+                    for i in range(1, 4):
+                        HOME()
+                        WheelSpins()
+                        HOME()
+                        SlotSpins()
+                        HOME()
+                        Farm_Wallets()
+                        HOME()
+                        Farm_Botnet()
+                        HOME()
+                        Farm_Network()
+                        HOME()
+                        NC_Mining(50) # 5 Minutes
+                        Farm_Terminal()
+                        HOME()                       
+                        NC_Mining(10)
 
-        elif user_input == '4':
-            quit_script(stop_mining, farm_process=None)
-        else:
-            os.system('cls||clear')
-            print('Not a valid option.')
-
-def quit_script(stop_mining, farm_process=None):
-    """
-    Exit function for the entire script, called once 'Farm Time' is done.
-    """
-    global CLOSE_SCRIPT
-    os.system('cls||clear')
-    print('Farm finished, closing...')
-    stop_mining.value = True
-    if farm_process is not None:
-        farm_process.terminate()
-    time.sleep(3)
-    CLOSE_SCRIPT = True
+                case MenuItems.NC:
+                    NC_Mining(10)
+                case MenuItems.BOTNET:
+                    Farm_Botnet()
+                case MenuItems.SPIN:
+                    WheelSpins()
+                case MenuItems.WHEEL:
+                    SlotSpins()
+                case MenuItems.NETWORK:
+                    Farm_Network()
+                case MenuItems.TERMINAL:
+                    Farm_Terminal()
+                case MenuItems.BANK:
+                    Farm_Wallets()
+                case MenuItems.DEBUG_MOUSE:
+                    Track_Nouse()
+                case MenuItems.QUIT:
+                    print('Closing...')
+                    exit(0)
+                    
+        except KeyboardInterrupt:
+            continue
+        
+        except Exception as e: 
+            print(e)
+            exit(1)
 
 if __name__ == '__main__':
     main()
